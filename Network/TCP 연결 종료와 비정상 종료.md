@@ -6,13 +6,10 @@
 
     클라이언트가 서버에게 종료 메시지를 보내는 경우를 가정해 보자
 
-    ![](../Image/4wayhandshake.jpg "4wayhandshake" ){: style="
-        display:block;
-        width:300px;
-        height:300px;
-        border:solid 2px;
-        margin: 0 auto;
-    "}
+    
+    <div align="center"><kbd>
+      <img width="300px" height="300px" display="block" border="solid 2px" margin="0 auto" src="../Image/4wayhandshake.jpg">
+    </kbd></div>
 
     * 통신을 종료하고자 하는 Client가 서버에게 **FIN** 패킷을 보내고 자신은 **FIN_WAIT_1** 상태로 대기한다.
     * **FIN** 패킷을 받은 서버는 해당 포트를 **CLOSE_WAIT**으로 바꾸고 잘 받았다는 **ACK**를 Client에게 전한다. **ACK**를 받은 Client는 상태를 **FIN_WAIT_2**로 변경한다.
