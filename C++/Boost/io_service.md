@@ -49,17 +49,17 @@ boost::asio::ip::tcp::socket socket(io_service);
    ~~~
    요구되는 정확한 시그니처는 실행되는 비동기 작업에 따라 다릅니다. 참조 문서에는 각 작업에 적합한 양식이 나와 있습니다.
 2. I/O 객체는 요청을 io_service로 전달합니다.
-3. io_service는 운영체제에게 비동기 연결을 시작해야하는 신호를 보냅니다.
+3. io_service는 운영체제에게 비동기 연결을 시작해야 하는 신호를 보냅니다.
 
-시간이 지남. (동기 연결방식의 경우, 이 기다림은 접속 연결 기간에 포함되었을 것이다.)
+시간이 지남. (동기 연결 방식의 경우, 이 기다림은 접속 연결 기간에 포함되었을 것이다.)
 
 <div align="center"><kbd>
       <img width="300px" height="300px" display="block" border="solid 2px" margin="0 auto" src="../../Image/async_op2.png">
     </kbd></div>
 
-4. 운영체제는 결과를 대기열에 배치하여 연결 작업이 완료 되었음을 나타냅니다. io_service에서 작업을 수행할 준비가 되었습니다.
-5. 프로그램은 io_service::run() (또는 유사한 io_service 멤버 함수 중 하나)을 호출하여 결과를 검색해야 합니다. 완료되지 않은 비동기 작업이 있는 동안 io_service::run()을 호출하면 첫 번쨰 비동기 작업을 시작하자마자 호출합니다.
-6. io_service::run()을 호출하는 동안 io_service는 작업 결과를 대기열에서 제거하고 error_code로 변환 한 다음 completion handler로 전달합니다.
+4. 운영체제는 결과를 대기 열에 배치하여 연결 작업이 완료되었음을 나타냅니다. io_service에서 작업을 수행할 준비가 되었습니다.
+5. 프로그램은 io_service::run() (또는 유사한 io_service 멤버 함수 중 하나)을 호출하여 결과를 검색해야 합니다. 완료되지 않은 비동기 작업이 있는 동안 io_service::run()을 호출하면 첫 번째 비동기 작업을 시작하자마자 호출합니다.
+6. io_service::run()을 호출하는 동안 io_service는 작업 결과를 대기 열에서 제거하고 error_code로 변환 한 다음 completion handler로 전달합니다.
 
 [참조]
 * http://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html
