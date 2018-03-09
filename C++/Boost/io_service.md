@@ -5,7 +5,7 @@ Boost.Asio는 소켓과 같은 IO 오브젝트에서 동기와 비동기 작업을 수행하는 데 사용될
 소개 예제로, 소켓에서 연결 작업을 수행할 때 어떤 일이 일어나는지 생각해 봅시다. 동기 작업을 예로 들어보겠습니다.
 
 <div align="center"><kbd>
-      <img width="300px" height="300px" display="block" border="solid 2px" margin="0 auto" src="../../Image/sync_op.png">
+      <img display="block" border="solid 2px" margin="0 auto" src="../../Image/sync_op.png">
     </kbd></div>
 
 프로그램에는 하나 이상의 io_service 객체가 있습니다. io_service는 운영체제의 I/O 서비스에 대한 프로그램의 링크를 나타냅니다.
@@ -36,7 +36,7 @@ boost::asio::ip::tcp::socket socket(io_service);
 비동기 작업이 수행되면, 다른 일련의 이벤트가 발생합니다.
 
 <div align="center"><kbd>
-      <img width="300px" height="300px" display="block" border="solid 2px" margin="0 auto" src="../../Image/async_op1.png">
+      <img display="block" border="solid 2px" margin="0 auto" src="../../Image/async_op1.png">
     </kbd></div>
 
 1. 프로그램이 I/O 객체를 호출하여 연결 작업을 시작합니다.
@@ -54,7 +54,7 @@ boost::asio::ip::tcp::socket socket(io_service);
 시간이 지남. (동기 연결 방식의 경우, 이 기다림은 접속 연결 기간에 포함되었을 것이다.)
 
 <div align="center"><kbd>
-      <img width="300px" height="300px" display="block" border="solid 2px" margin="0 auto" src="../../Image/async_op2.png">
+      <img display="block" border="solid 2px" margin="0 auto" src="../../Image/async_op2.png">
     </kbd></div>
 
 4. 운영체제는 결과를 대기 열에 배치하여 연결 작업이 완료되었음을 나타냅니다. io_service에서 작업을 수행할 준비가 되었습니다.
