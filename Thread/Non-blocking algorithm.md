@@ -45,9 +45,59 @@
 
     정확한 동시 지원은 일반적으로 Lock-Free 알고리즘의 가장 복잡한 부분이며, 실행 비용이 많이 든다.
     지원해주는 쓰레드가 느려질 뿐만 아니라, 공유 메모리의 메커니즘으로 인해 도움을 받는 쓰레드도 느려질 것이다.
+
+    ----
+
+    여러개의 쓰레드에서 동시에 작업이 호출되었을 경우 정해진 시간마다 적어도 한 개의 알고리즘 호출이 완료되는 알고리즘. Lock-Free는 적어도 1개는 무조건 실행이 되고 있어야한다.
+
+    Lock-Free에는 Wait-Free와 Wait-Free가 아닌 알고리즘이 존재한다. Lock-Free라고 해서 Wait-Free는 아니다. Wait-Free는 Lock-Free 알고리즘이다.
+
+    Non-Blocking을 구현하기 위해서는 대부분의 알고리즘에 CAS가 필요하다. enqueue, push, insert 등등..
+    CAS가 있으면 모든 싱글 쓰레드 알고리즘을 Lock-Free 알고리즘으로 구현할 수 있다.
+
+    ~~~cpp
+    CAS(&a, old, new)
+    ~~~
+
+    a 메모리 값이 old이면 new로 바꾸고 old가 아니라면 아무것도 하지 말아라.
+    다시 말해서 a 메모리를 다른 쓰레드가 건드려서 false가 나오면 아무것도 하지 말라는 뜻이다.
+
+    ----
+
+    Non-Blocking 알고리즘에는 등급이 있다. 가장 이상적인 것은 전체 쓰레드가 공유 자원을 일관적으로 사용하면서도 대기하지 않고 그냥 진행되는 것이다.
+    이것을 Wait-Free 수준의 알고리즘이라고 한다. 하지만 Wait-Free를 제대로 구현하려면 많은 제약이 따른다. 그래서 매우 한정적인 상황에서만 Wait-Free 알고리즘을 적용할 수 있다.
+    일반적인 경우 Lock-Free 수준의 알고리즘을 사용한다. 항상 하나 이상의 자원이 유한한 단계에 획득되어서 그 사용을 끝마친다.
+    어떤 쓰레드가 자원을 획득할지 결정적이지 않으므로, 여전히 기아현상을 완전히 극복할 수는 없다.
+    이보다 낮은 단계의 Obstruction-Free 수준이 있다. 한개를 제외하고 다른 모든 쓰레드를 대기시키면 대기 아닌 쓰레드가 자원을 획득하여 유한한 단계에 사용을 끝마칠 수 있다.
+    충돌중인 쓰레드를 멈추게 해야한다는 점에서 진정 Non-Blocking이라고 부르기엔 문제가 있지 않은가 한다.
+
+    Atomic 연산을 통해 Lock-Free를 구현한다. Windows에서 Atomic 연산들은 보통 Interlocked~로 제공된다. Atomic 연산은 실행이 한번에 완료되는 것을 보장하므로, 쓰레드 동기화 문제에서 쉽게 벗어날 수 있다.
+    여러 atomic 연산이 있는데 그 중에 Lock-Free에 가져다 쓰기 가장 좋은 것이 CAS(Compare and -set/swap)이다.
+    지금 쓰려고 하는 대상이 현재 쓰레드의 맥락에서 일관적이면, 변경을 가하고 그렇지 않으면 대기하지 않고 바뀐 상태로 쓰레드의 로컬 정보를 갱신한 뒤 다른 작업을 진행하는 것이다.
+    
+    Stack 자료구조에서 Push 하는 예제 코드를 보면 쉽게 이해할 수 있다.
+
+    ~~~cpp
+    void Push(Node* pNewNode)
+    {
+        do{
+            // 이번 try의 top를 체크한다.
+            Node* t = pTopNode;
+            // 일단 새로 넣을 객체의 next를 이번 try의 top으로 놓고
+            pNewNode->pNext = t;
+        // 내가 아는 top이 지금도 top이면 pNewNode를 넣는다. 
+        } while(!CAS(&pTopNode, t, pNewNode))
+    }
+    ~~~
+    
+    <div align="center"><kbd>
+      <img  display="block" border="solid 2px" margin="0 auto" src="../Image/ABA.jpg">
+    </kbd></div>
     
 
 [참조]
 
 * https://rein.kr/blog/archives/1346
 * https://en.wikipedia.org/wiki/Non-blocking_algorithm
+* http://true-bear.tistory.com/49
+* http://ozt88.tistory.com/38
