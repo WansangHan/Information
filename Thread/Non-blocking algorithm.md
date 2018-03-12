@@ -182,6 +182,114 @@
     
     Wait-Free 데이터 구조는 동시 엑세스에 대한 최대 잠재력을 가지고 있습니다. 그러나 다른 Lock-Free 데이터 구조보다 훨씬 구현하기 어려우며 일반적으로 모든 엑세스에 추가 성능 비용이 들어갑니다.
 
+    ----
+
+    Non-Blocking 쓰레드 동기화 알고리즘에는 Lock-Free, Wait-Free 알고리즘이 있습니다.
+    그들의 의미는 가끔씩 헷갈립니다.
+    Lock-Free 시스템에서 특정 계산이 일정 기간동안 차단될 수 있지만, 모든 CPU는 다른 계산을 계속 수행할 수 있습니다.
+    Lock-Free 알고리즘은 가끔 특정 트랜잭션의 대기 시간을 증가시킴으로써 시스템의 전체 처리량을 증가시킵니다.
+    대부분의 high-end 데이터 베이스 시스템은 다양한 수준의 Lock-Free 알고리즘을 기반으로 합니다.
+
+    반대로 Wait-Free 알고리즘은 모든 CPU가 효과적으로 작업을 계속 할 뿐만 아니라, 다른 연산을 통해 연산이 Blocking 될 수 없도록 합니다.
+    Wait-Free 알고리즘은 Lock-Free 알고리즘보다 더 강력한 보장을 제공하며, 특정 트랜잭션의 대기 시간을 소모하지 않으면서 높은 처리량을 보장합니다.
+    또한 구현, 테스트, 디버그가 훨씬 더 어렵습니다.
+
+    시스템이 수십개의 동시 트랜잭션을 처리하고 유연한 대기시간 요구 사항이 있는 상황에서, Lock-Free 시스템은 개발 복잡성과 높은 동시성 요구 사항간의 좋은 절충안입니다.
+    웹 사이트용 데이터베이스 서버는 Lock-Free 알고리즘 디자인을 위한 좋은 후보입니다.
+    주어진 트랜잭션이 차단될 수는 있지만, 처리되는 트랜잭션은 항상 더 많으므로 CPU가 Idle 상태를 유지하지는 않습니다.
+    문제는 적절한 대기시간과 적당한 표준편차를 유지하는 트랜잭션 스케줄러를 구축하는 것입니다.
+
+    시스템이 대략적으로 CPU 코어만큼 많은 동시 트랜잭션을 처리하거나, 처리하기 어려운 실시간 요구 사항이 있는 경우, 개발자는 Wait-Free 시스템을 구축하기 위해 추가 시간을 할애해야합니다.
+
+    ----
+    
+    Lock-Free 프로그램의 중요한 결과중 하나는 만약 한 단일 쓰레드가 일시 중단을 한다고 하더라도 쓰레드 각각의 Lock-Free 연산을 통해 그것이 절대 다른 쓰레드를 막지 않는 다는 것입니다.
+    이것은 인터럽트 처리기 및 실시간 시스템을 작성할 때, Lock-Free 프로그래밍의 가치를 나타냅니다.
+    프로그램의 나머지 상태가 무엇이든 특정 작업이 특정 시간 제한 내에 완료되어야 하는 실시간 시스템입니다.
+
+    원자적 연산은 나눌 수 없는 방식으로 메모리를 조작하는 것입니다.
+    쓰레드가 일을 반만 끝낸 것은 절대 볼 수 없습니다.
+
+    Read-Modify-Write(RMW) 작업은 한단계 더 나아가 복잡한 트랜잭션을 자동으로 수행할 수 있게 해주비다.
+    Lock-Free 알고리즘이 여러 작성자들을 지원해야할 때 매우 유용합니다.
+    실제로는 한 줄씩 정렬하여 이러한 작업을 한번에 하나씩 실행하기 때문입니다.
+
+    RMW 연산의 예로, Win32의 _InterlockedIncrement, iOS의 OSAtomicAdd32, c++11의 std::atomic\<int\>::fetch_add가 있습니다.
+
+    c++ 11 원자 표준 구현이 모든 플랫폼에서 잠금 없이 수행된다는 것을 보장하지 않으므로, 플랫폼과 툴체인의 기능을 아는 것이 좋습니다.
+    std::atomic\<\>::is_lock_free를 호출하여 확실히 확인할 수 있습니다.
+
+    원자 RMW는 단일 프로세서 시스템에서도 Lock-Free 프로그래밍의 필수 요소입니다.
+    원자성이 없으면 트랜잭션의 중간에 쓰레드가 인터럽트 되어 일관성이 없는 상태가 될 수 있습니다.
+
+    가장 자주 논의되는 RWM 연산은 CAS(Compare-And-Swap)입니다. Win32에서 CAS는 _InterlockedCompareExchange와 같은 내장 함수 계열을 통해 제공됩니다.
+    종종 프로그래머들은 트랜잭션을 반복적으로 시도하기 위해, 반복문에서 CAS를 수행합니다.
+    이 패턴은 일반적으로 공유 변수를 로컬 변수에 복사하고, 가능성 있는 일(CAS가 성공했을 시 적용될 부분)을 수행하고, CAS를 사용하여 변경 사항을 적용하려고 합니다.
+
+    ~~~cpp
+    void LockFreeQueue::push(Node* newHead)
+    {
+        for(;;)
+        {
+            // Copy a shared variable (m_Head) to a local.
+            Node* oldHead = m_Head;
+
+            // Do some speculative works, not yet visible to other threads.
+            newHead->next = oldHead;
+
+            // Next, attempt to publish our changes to the shared variable.
+            // If the shared variable hasn't changed, the CAS succeeds and we return.
+            // Otherwise, repeat.
+            if(_InterlockedCompareExchange(&m_Head, newHead, oldHead) == oldHead)
+                return;
+        }
+    }
+    ~~~
+
+    이러한 루프는 여전히 하나의 쓰레드에 대해 테스트가 실패하면 다른 쓰레드에서 성공했다는 것을 의미하기 때문에 Lock-Free로 간주됩니다.
+    CAS 루프를 구현할 때마다 ABA 문제를 피하기 위해 특별한 주의를 기울여야 합니다.
+
+    Sequential consistency는 모든 쓰레드가 메모리 연산이 발생한 순서에 동의하며, 그 순서는 프로그램 소스 코드의 연산 순서와 일치함을 의미합니다.
+    Sequential consistency 하에 메모리 재배열을 경험하는 것은 불가능합니다.
+
+    Sequential consistency를 달성하는 간단한 방법은 컴파일러 최적화를 비활성화 하고 모든 쓰레드를 단일 프로세서에서 실행하도록 하는 것입니다.
+    프로세서는 임의의 시간에 쓰레드를 선점하고 예약할 때에도 자체 메모리 효과를 알 수 없습니다.
+
+    일부 프로그래밍 언어는 다중 프로세서 환경에서 실행되는 최적화 된 코드에 대해서도 순차적으로 일관성을 제공합니다.
+    C\+\+11에서는 모든 공유 변수를 기본 메모리 순서 제약 조건을 가진 C\+\+11 원자 유형으로 선언할 수 있습니다.
+
+    자바에서는 모든 공유 변수를 휘발성으로 표시할 수 있습니다.
+    다음은 C++11 스타일로 다시 작성된 이전 게시물의 예제입니다.
+
+    ~~~cpp
+    std::atomic<int> X(0), Y(0);
+    int r1, r2;
+
+    void thread1()
+    {
+        X.store(1);
+        r1 = Y.load();
+    }
+
+    void thread2()
+    {
+        Y.store(1);
+        r2 = X.load();
+    }
+    ~~~
+
+    C++11 Atomic은 sequential consistency를 보장하기 때문에 결과 r1 = r2 = 0은 불가능합니다.
+    이를 달성하기 위해 컴파일러는 일반적으로 메모리 장벽 및 / 또는 RMW 작업과 관련된 추가 명령을 출력합니다.
+    이러한 추가 명령어는 프로그래머가 메모리 순서를 직접 처리한 것과 비교하여 구현을 덜 효율적으로 만들 수 있습니다.
+
+    멀티 코어에 대한 Lock-Free 프로그래밍을 수행할 때마다 환경이 sequential consistency를 보장하지 않으면, 메모리 순서 재지정을 방지하는 방법을 고려해야합니다.
+
+    오늘날의 아키텍쳐에서 올바른 메모리 순서를 적용하는 도구는 일반적으로 컴파일 순서 변경과 프로세서 순서 변경을 방지하는 세 가지 범주로 나뉩니다.
+
+    * 가벼운 싱크 또는 펜스 명령
+    * 전체 메모리 펜스 명령
+    * Acquire Sementics 또는 Release Sementics을 제공하는 메모리 연산
+
 [참조]
 
 * https://rein.kr/blog/archives/1346
@@ -190,3 +298,5 @@
 * http://ozt88.tistory.com/38
 * http://concurrencyfreaks.blogspot.kr/2013/05/lock-free-and-wait-free-definition-and.html
 * https://www.justsoftwaresolutions.co.uk/threading/non_blocking_lock_free_and_wait_free.html
+* https://rethinkdb.com/blog/lock-free-vs-wait-free-concurrency/
+* http://preshing.com/20120612/an-introduction-to-lock-free-programming/
