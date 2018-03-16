@@ -147,11 +147,11 @@
     {
         do{
             // 이번 try의 top를 체크한다.
-            Node* t = pTopNode;
+            Node* t = pTopNode;     // (1)
             // 일단 새로 넣을 객체의 next를 이번 try의 top으로 놓고
-            pNewNode->pNext = t;
+            pNewNode->pNext = t;    // (2)
         // 내가 아는 top이 지금도 top이면 pNewNode를 넣는다. 
-        } while(!CAS(&pTopNode, t, pNewNode))
+        } while(!CAS(&pTopNode, t, pNewNode))   // (3)
     }
     ~~~
 
@@ -691,3 +691,4 @@
 * https://en.wikipedia.org/wiki/ABA_problem
 * http://decdream.tistory.com/342
 * http://www.boyet.com/Articles/LockfreeStack.html
+* https://woboq.com/blog/introduction-to-lockfree-programming.html
