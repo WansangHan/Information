@@ -6,7 +6,7 @@
 
     Wait-Free는 시스템 전체의 처리량을 보장해주는 가장 강력한 Non-Blocking 알고리즘입니다.
     이러한 특징은 실시간 시스템에 매우 중요하며, 성능상 처리 비용이 너무 높지 않은 한 항상 활용하는 것이 좋습니다.
-    Wait-Free 데이터 구조는 데이터 구조에 엑세스 하는 모든 쓰레드가 다른 쓰레드의 동작과 관계없이 제한된 수의 단계 내에서 해당 연산을 완료할 수 있도록 하는 특성을 가진 Lock-Free 데이터 구조입니다.
+    Wait-Free 데이터 구조는 데이터 구조에 액세스하는 모든 스레드가 다른 스레드의 동작과 관계없이 제한된 수의 단계 내에서 해당 연산을 완료할 수 있도록 하는 특성을 가진 Lock-Free 데이터 구조입니다.
     
     
 
@@ -53,23 +53,82 @@
     다시 말해서 a 메모리를 다른 스레드가 건드려서 false가 나오면 아무것도 하지 않는다는 뜻입니다.
 
     항상 하나 이상의 자원이 유한한 단계에 획득되어 연산을 끝마칩니다.
-    어떤 쓰레드가 자원을 획득할지 결정적이지 않으므로 여전히 기아 현상을 완전히 극복할 수는 없습니다.
+    어떤 스레드가 자원을 획득할지 결정적이지 않으므로 여전히 기아 현상을 완전히 극복할 수는 없습니다.
 
     만약 여러 스레드가 동일한 데이터를 수정하려고 하고, 서로 재시도를 하게 하는 Lock-Free 데이터 구조를 사용한다면 스레드가 서로의 진행을 방해하므로 여러 스레드에서 높은 액세스 속도로 인해 성능이 심각하게 저하될 수 있습니다.
     이것이 Wait-Free 데이터 구조가 중요한 이유입니다.
 
-* ### 비교
+* ### Lock-Free 구현
+
+    ~~~cpp
+    void Push(Node* pNewNode)
+    {
+        do {
+            // 이번 try의 top을 체크합니다.
+            Node* t = pTopNode;     // (1)
+            // 일단 새로 넣을 객체의 Next를 이번 try의 top으로 놓고
+            pNewNode->pNext = t;    // (2)
+        // 내가 아는 top이 지금도 top이라면 pNewNode를 넣습니다.
+        } while(!CAS(&pTopNode, t, pNewNode))   // (3)
+    }
+    ~~~
+
+    * 각 노드는 다음 노드에 대한 포인터를 가지며, head라는 첫 번째 노드에 대한 포인터를 갖습니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/stack1.png">
+        </kbd></div>
+
+    * 이 예에서 두 개의 스레드는 노드를 Push 하려고 합니다. 두 스레드는 이미 (2) 줄까지 실행했으며, 이전 헤드인 B에서 C 또는 D로 변경하기 위한 원자 연산을 시작합니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/stack2.png">
+        </kbd></div>
+
+    * 이 이미지에서 스레드 2의 연산이 먼저임을 알 수 있습니다. 연산 결과로 D가 스택으로 Push 되었습니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/stack3.png">
+        </kbd></div>
+
+    * Head가 더 이상 B가 아니기 때문에, 스레드 1의 CAS 연산은 실패합니다. Head는 변경되지 않고 여전히 D가 스택에 있습니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/stack4.png">
+        </kbd></div>
+
+    * 스레드 1은 CAS에 실패하고 다시 D를 Head로 지정해 시도한다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/stack5.png">
+        </kbd></div>
+
+* ### ABA 문제
   
-    정리중
+    * 스레드 1은 노드를 pop 하려고 합니다. A의 주소를 가진 후 head를 A에서 B로 변경하기 위한 CAS를 수행하려고 합니다. 그러나 CAS를 실행하기 직전에 OS에 의해 Context Switching이 되어 스레드 2의 실행 순서가 되었다고 가정합니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/aba1.png">
+        </kbd></div>
+
+    * 스레드 1이 Sleep 상태인 동안, 스레드 2도 노드를 pop하므로 A는 더 이상 스택에 없습니다. 스레드 1이 깨어나면, head가 A와 더 이상 같지 않기 때문에 스레드 1의 CAS 연산은 실패합니다. 그러나 스레드 1은 깨어나지 않고, 스레드 2가 계속 진행된다고 가정합니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/aba2.png">
+        </kbd></div>
+
+    * 스레드 2가 C를 push 합니다. 아직도 스레드 1이 깨어나면 문제가 없지만, 여전히 스레드 2가 실행되고 있다고 가정합니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/aba3.png">
+        </kbd></div>
+
+    * 그리고 스레드 2가 A를 push 합니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/aba4.png">
+        </kbd></div>
+
+    * 이 상황에서 스레드 1이 깨어나 CAS를 실행합니다. head는 여전히 A이기 때문에 연산이 성공합니다. 결과적으로 head는 B를 가리키기 때문에 C의 데이터가 유실됩니다.
+        <div align="center"><kbd>
+            <img display="block" border="solid 2px" margin="0 auto" src="../Image/aba5.png">
+        </kbd></div> 
 
 
 # Non-Blocking Algorithm
 
 * ### Wait-Free
-    Wait-Free는 Starvation-Free와 함께, 보장된 시스템 전체의 처리량을 갖춘 가장 강력한 Non-Blocking 알고리즘입니다.
-    어떤 알고리즘의 모든 연산이 완료될 때까지 밟는 단계가 유한한 경우 Wait-Free이다.
-    이 특징은 실시간 시스템에 중요하며 성능 비용이 너무 높지 않은 한 항상 가지고 있는 것이 좋습니다.
-
     1980년대에 모든 알고리즘은 Wait-Free로 구현될 수 있었고, 일반적인 구조라고 불리는 일련의 코드로부터 많은 변화를 보여주었다.
     그러나 결과적으로 나온 성능은 기존의 Blocking 방식과도 상대가 되지 않았습니다.
     여러 논문이 일반적 구조의 성능은 향상시켰지만, 여전히 성능은 Blocking 방식에 미치지 못했습니다.
@@ -92,10 +151,6 @@
     특히 한 쓰레드가 일시 중단된 경우, Lock-Free 알고리즘으로 나머지 쓰레드가 계속 진행될 수 있습니다. 
     따라서 두 쓰레드가 동일한 mutex lock 또는 spinlock에 대해 경쟁하는 경우, 이 알고리즘은 Lock-Free가 아닙니다.
 
-    만약 일부 프로세서에 의한 무한한 동작이 유한한 수의 단계에서 성공한다면 이 알고리즘은 Lock-Free입니다.
-    예를 들어, N 개의 프로세서가 하나의 동작을 실행하려고 한다면, 그중 일부는 유한한 수의 단계에서 연산을 완료하고 나머지는 실패할 수 있으며 다시 시도할 수 있습니다.
-    Wait-Free와 Lock-Free의 차이점은, 각 프로세스의 Wait-Free 작업이 유한한 수의 단계에서 성공할 수 있다는 것입니다.
-
     일반적으로, Lock-Free 알고리즘은 네 가지 단계로 실행될 수 있습니다. 
     
     1) 작업 완료 
@@ -103,41 +158,11 @@
     3) 작업 차단 중단
     4) 대기
 
-    작업을 완료하는 것은 동시적인 지원, 중단의 가능성에 따라 복잡하지만, 완료까지 가장 빠른 길입니다.
-
-    작업 차단의 경우에 직면했을 때 지원, 중단, 대기에 대한 경쟁을 관리하는 쪽의 책임입니다.
-    이는 매우 간단할 수도 있고, 더 나은 처리 결과를 얻거나 우선순위가 지정된 작업의 대기 시간을 줄이기 위해 더 최적화될 수 있습니다.
-
-    정확한 동시 지원은 일반적으로 Lock-Free 알고리즘의 가장 복잡한 부분이며, 실행 비용이 많이 든다.
-    지원해주는 쓰레드가 느려질 뿐만 아니라, 공유 메모리의 메커니즘으로 인해 도움을 받는 쓰레드도 느려질 것이다.
-
     ----
 
-    여러개의 쓰레드에서 동시에 작업이 호출되었을 경우 정해진 시간마다 적어도 한 개의 알고리즘 호출이 완료되는 알고리즘. Lock-Free는 적어도 1개는 무조건 실행이 되고 있어야한다.
-
-    Lock-Free에는 Wait-Free와 Wait-Free가 아닌 알고리즘이 존재한다. Lock-Free라고 해서 Wait-Free는 아니다. Wait-Free는 Lock-Free 알고리즘이다.
-
-    Non-Blocking을 구현하기 위해서는 대부분의 알고리즘에 CAS가 필요하다. enqueue, push, insert 등등..
-    CAS가 있으면 모든 싱글 쓰레드 알고리즘을 Lock-Free 알고리즘으로 구현할 수 있다.
-
-    ~~~cpp
-    CAS(&a, old, new)
-    ~~~
-
-    a 메모리 값이 old이면 new로 바꾸고 old가 아니라면 아무것도 하지 말아라.
-    다시 말해서 a 메모리를 다른 쓰레드가 건드려서 false가 나오면 아무것도 하지 말라는 뜻이다.
-
-    ----
-
-    Non-Blocking 알고리즘에는 등급이 있다. 가장 이상적인 것은 전체 쓰레드가 공유 자원을 일관적으로 사용하면서도 대기하지 않고 그냥 진행되는 것이다.
-    이것을 Wait-Free 수준의 알고리즘이라고 한다. 하지만 Wait-Free를 제대로 구현하려면 많은 제약이 따른다. 그래서 매우 한정적인 상황에서만 Wait-Free 알고리즘을 적용할 수 있다.
-    일반적인 경우 Lock-Free 수준의 알고리즘을 사용한다. 항상 하나 이상의 자원이 유한한 단계에 획득되어서 그 사용을 끝마친다.
-    어떤 쓰레드가 자원을 획득할지 결정적이지 않으므로, 여전히 기아현상을 완전히 극복할 수는 없다.
     이보다 낮은 단계의 Obstruction-Free 수준이 있다. 한개를 제외하고 다른 모든 쓰레드를 대기시키면 대기 아닌 쓰레드가 자원을 획득하여 유한한 단계에 사용을 끝마칠 수 있다.
     충돌중인 쓰레드를 멈추게 해야한다는 점에서 진정 Non-Blocking이라고 부르기엔 문제가 있지 않은가 한다.
 
-    Atomic 연산을 통해 Lock-Free를 구현한다. Windows에서 Atomic 연산들은 보통 Interlocked~로 제공된다. Atomic 연산은 실행이 한번에 완료되는 것을 보장하므로, 쓰레드 동기화 문제에서 쉽게 벗어날 수 있다.
-    여러 atomic 연산이 있는데 그 중에 Lock-Free에 가져다 쓰기 가장 좋은 것이 CAS(Compare and -set/swap)이다.
     지금 쓰려고 하는 대상이 현재 쓰레드의 맥락에서 일관적이면, 변경을 가하고 그렇지 않으면 대기하지 않고 바뀐 상태로 쓰레드의 로컬 정보를 갱신한 뒤 다른 작업을 진행하는 것이다.
     
     Stack 자료구조에서 Push 하는 예제 코드를 보면 쉽게 이해할 수 있다.
@@ -156,42 +181,6 @@
     ~~~
 
     사실 위 예제는 사용할 수 있는 코드가 아니다. ABA라고 불리는 문제 때문이다.
-    
-    ----
-
-    * Blocking
-        
-        이것은 일반적으로 가장 많이 알려져 있습니다. 기본적으로, lock를 사용하는 대부분이 Blocking입니다.
-        한 쓰레드에 대한 예기치 않은 지연으로 다른 쓰레드가 진행되지 못하게 할 수 있습니다.
-        최악의 경우 락을 가진 쓰레드가 sleep 상태가 되어, 다른 모든 쓰레드를 Block해 진행을 방해할 가능성이 있습니다.
-        
-    * Lock-Free
-    
-        Lock-Free 속성은 적어도 일부 쓰레드가 작업을 진행하고 있음을 보증합니다.
-        이론적으로 이것은 메소드가 완료하는 데 무한한 양의 작업을 수행할 수 있음을 의미하지만 실제로는 짧은 양이 소요됩니다.
-        메소드를 호술하는 일부 쓰레드가 한정된 수의 단계로 끝나는 것을 무한히 보장할 경우 Lock-Free입니다.
-
-    * Wait-Free
-    
-        Wait-Free 속성은 타임 슬라이스와 함께 제공된 임의의 주어진 쓰레드가 어떤 진전을 이루어 결국 완료될 수 있음을 보장합니다.
-        단계 수는 유한하지만 실제로 매우 크고 활성 쓰레드의 수에 따라 달라지므로 실용적인 Wait-Free 데이터 구조가 많지 않습니다.
-        모든 호출이 한정된 수의 단계에서 실행을 완료하도록 보장하는 경우 메소드는 WaitFree입니다.
-
-    * Wait-Free Bounded
-    
-        Wait-Free Bounded 함수도 Wait-Free입니다.
-        모든 호출이 유한하고 제한된 수의 단계에서 실행을 완료하도록 보장하는 경우 메소드는 Wait-Free Bounded입니다. 이 경계는 쓰레드의 수에 따라 달라질 수 있습니다.
-
-    * Wait-Free Population Oblivious
-    
-        이 함수는 활성 쓰레드의 수에 의존하지 않는 명령어로 완성됩니다. Wait-Free Population Oblivious 함수도 Wait-Free Bounded입니다.
-        성능이 활성 쓰레드의 수에 의존하지 않는 Wait-Free 메소드는 Wait-Free Population Oblivios 라고 합니다.
-
-    Process Condition의 전체 개념은 알고리즘과 함수를 시간 보증 측면에서 분류하는 것이지만, 정의는 작업의 수로 이루어 진다.
-    이것은 작업이 완료되는데 걸리는 시간이 활성 쓰레드의 수에 관계없이 동일하다는 가정하에 수행됩니다.
-    이는 단일 쓰레드 코드에 대한 올바른 가정이지만 다중 쓰레드 프로그램에 대해서는 올바르지 않은 가정입니다.
-
-    http://concurrencyfreaks.blogspot.kr/2013/05/lock-free-and-wait-free-definition-and.html 관련 더 봐야할듯
 
     ----
 
@@ -216,7 +205,6 @@
         예를 들어 Lock-Free Queue는 다른 쓰레드가 새로운 값을 추가할 때 다른 쓰레드가 값을 제거하는 것을 허락한다. 반면 새로운 값을 동시에 추가하는 다중 쓰레드는 잠재적으로 데이터 손상을 일으킬 수 있습니다.
         데이터 구조 설명은 어떤 연산의 조합이 안전하게 동시에 호출 될 수 있는 지를 나타냅니다.
         
-        한 데이터 구조를 Lock-Free 알고리즘으로 규정하려면, 데이터 구조에 대한 연산을 수행하고 있는 쓰레드가 연산 도중 어느 포인트에서 중단 됐을 때, 데이터 구조에 접근을 하는 다른 쓰레드들은 반드시 그들의 일을 끝낼 수 있어야합니다.
         이것은 Spin-Lock이나 다른 Busy-Wait 메커니즘을 사용하는 Non-Blocking 데이터 구조와는 구별되는 근본적인 규약 사항입니다.
 
         단지 데이터 구조가 Lock-Free이기 때문에 쓰레드가 기다릴 필요가 없다는 것을 의미하는 것은 아닙니다.
@@ -227,9 +215,6 @@
         알고리즘이 Lock-Free이려면, 중단된 쓰레드의 부분 완료 연산을 중단하거나 완료해야합니다.
         일시 중단된 쓰레드가 스케줄러에 의해 깨워지면 재시도 하거나 적절하게 연산을 완료할 수 있습니다.
         Lock-Free 알고리즘에서 쓰레드는 경쟁이 심한 경우 무한번 연산을 재시도 해야한다는 것을 알아낼 수도 있습니다.
-
-        만약 여러 쓰레드가 동일한 데이터를 수정하려고 하고, 서로 재시도를 하게 하는 Lock-Free 데이터 구조를 사용한다면 쓰레드가 서로의 진행을 방해하므로 여러 쓰레드에서 높은 엑세스 속도로 인해 성능이 심각하게 저하될 수 있습니다.
-        이것이 Wait-Free 데이터 구조가 중요한 이유입니다.
 
     * Wait-Free
 
